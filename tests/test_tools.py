@@ -3,7 +3,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pytest
-from tools import search_listings, suggest_outfit, create_fit_card
+from tools import search_listings, suggest_outfit, create_fit_card, compare_price, check_trends
 
 def test_search_returns_results():
     results = search_listings("vintage graphic tee", size=None, max_price=50)
@@ -45,3 +45,21 @@ def test_create_fit_card_valid_outfit():
     assert len(result) > 0
     assert "38" in result or "38.0" in result
     assert "depop" in result.lower()
+
+def test_compare_price_no_category():
+    item = {"title": "Vintage Tee", "price": 20.0} # no category
+    result = compare_price(item)
+    assert result == "No category to compare price against."
+
+def test_compare_price_valid():
+    # Use an item that definitely has a category in listings
+    item = {"id": "test_id", "title": "Vintage Tee", "price": 10.0, "category": "tops"}
+    result = compare_price(item)
+    assert isinstance(result, str)
+    assert "average price" in result.lower()
+
+def test_check_trends():
+    item = {"category": "bottoms", "style_tags": ["y2k", "low-rise"]}
+    result = check_trends(item)
+    assert isinstance(result, str)
+    assert len(result) > 0

@@ -71,6 +71,31 @@ def get_empty_wardrobe() -> dict:
     schema = load_wardrobe_schema()
     return schema["empty_wardrobe"]
 
+def get_style_profile_path() -> str:
+    return os.path.join(_DATA_DIR, "style_profile.json")
+
+def load_style_profile() -> Optional[dict]:
+    """
+    Loads the persistent style profile from data/style_profile.json if it exists.
+    Returns None if the profile doesn't exist.
+    """
+    path = get_style_profile_path()
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
+
+def save_style_profile(wardrobe: dict) -> None:
+    """
+    Saves the user's current wardrobe and preferences to data/style_profile.json.
+    """
+    path = get_style_profile_path()
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(wardrobe, f, indent=4)
+
 
 # --- Quick sanity check ---
 if __name__ == "__main__":

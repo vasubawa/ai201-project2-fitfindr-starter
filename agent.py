@@ -19,7 +19,7 @@ Usage (once implemented):
 """
 
 import re
-from tools import search_listings, suggest_outfit, create_fit_card
+from tools import search_listings, suggest_outfit, create_fit_card, compare_price, check_trends
 
 
 # ── session state ─────────────────────────────────────────────────────────────
@@ -43,6 +43,9 @@ def _new_session(query: str, wardrobe: dict) -> dict:
         "outfit_suggestion": None,   # string returned by suggest_outfit
         "fit_card": None,            # string returned by create_fit_card
         "error": None,               # set if the interaction ended early
+        "price_comparison": None,    # stretch: compare_price result
+        "trend_report": None,        # stretch: check_trends result
+        "fallback_message": None,    # stretch: if a retry happened
     }
 
 
@@ -76,14 +79,33 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     
     # Step 3: Call search_listings
     results = search_listings(parsed["description"], parsed["size"], parsed["max_price"])
+    
+    # Retry Logic with Fallback (Stretch Feature)
+    if not results:
+        # First retry: remove size constraint
+        if parsed.get("size"):
+            results = search_listings(parsed["description"], size=None, max_price=parsed.get("max_price"))
+            if results:
+                session["fallback_message"] = f"Couldn't find size '{parsed['size']}', but found these options instead."
+                
+        # Second retry: remove price constraint
+        if not results and parsed.get("max_price"):
+            results = search_listings(parsed["description"], size=None, max_price=None)
+            if results:
+                session["fallback_message"] = "Couldn't find items in your budget, but found these instead."
+
     session["search_results"] = results
     
     if not results:
-        session["error"] = "I couldn't find anything matching your search. Please try adjusting the size, price, or keywords."
+        session["error"] = "I couldn't find anything matching your search, even after relaxing size and price filters. Please try different keywords."
         return session
         
     # Step 4: Select the item to use
     session["selected_item"] = results[0]
+    
+    # Step 4.5: Stretch Tools
+    session["price_comparison"] = compare_price(session["selected_item"])
+    session["trend_report"] = check_trends(session["selected_item"])
     
     # Step 5: Call suggest_outfit
     session["outfit_suggestion"] = suggest_outfit(session["selected_item"], session["wardrobe"])
@@ -91,7 +113,19 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     # Step 6: Call create_fit_card
     session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"])
     
-    # Step 7: Return the session
+    # Step 7: Update Style Profile Memory (Stretch Feature)
+    if session["selected_item"] and isinstance(session.get("wardrobe"), dict):
+        new_wardrobe_item = {
+            "name": session["selected_item"].get("title", "New thrifted item"),
+            "category": session["selected_item"].get("category", "clothing")
+        }
+        if "items" in session["wardrobe"]:
+            session["wardrobe"]["items"].append(new_wardrobe_item)
+            
+        from utils.data_loader import save_style_profile
+        save_style_profile(session["wardrobe"])
+    
+    # Step 8: Return the session
     return session
 
 

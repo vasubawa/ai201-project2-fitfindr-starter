@@ -133,3 +133,60 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
         temperature=0.9
     )
     return response.choices[0].message.content.strip()
+
+
+# ── Tool 4: compare_price (Stretch) ───────────────────────────────────────────
+
+def compare_price(item: dict) -> str:
+    """
+    Estimates whether the price is fair based on comparable listings.
+    """
+    listings = load_listings()
+    category = item.get("category")
+    if not category:
+        return "No category to compare price against."
+    
+    comparable_prices = [
+        lst["price"] for lst in listings 
+        if lst.get("category") == category and lst.get("id") != item.get("id")
+    ]
+    
+    if not comparable_prices:
+        return "No comparable items found to check price."
+        
+    avg_price = sum(comparable_prices) / len(comparable_prices)
+    item_price = item.get("price", 0)
+    
+    if item_price < avg_price:
+        diff = avg_price - item_price
+        return f"Great deal! This is ${diff:.2f} below the average price (${avg_price:.2f}) for {category}."
+    elif item_price > avg_price:
+        diff = item_price - avg_price
+        return f"This is ${diff:.2f} above the average price (${avg_price:.2f}) for {category}."
+    else:
+        return f"This is exactly the average price (${avg_price:.2f}) for {category}."
+
+
+# ── Tool 5: check_trends (Stretch) ────────────────────────────────────────────
+
+def check_trends(item: dict) -> str:
+    """
+    Checks recent trends for the category and style tags of the selected item.
+    """
+    category = item.get("category", "clothing")
+    style_tags = ", ".join(item.get("style_tags", []))
+    
+    client = _get_groq_client()
+    prompt = (f"Act as a fashion trend analyst. In 1-2 short sentences, what are the current "
+              f"trends and popularity around '{category}' with styles like '{style_tags}'? "
+              f"Keep it extremely brief and factual.")
+              
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        return "This style is always a classic."

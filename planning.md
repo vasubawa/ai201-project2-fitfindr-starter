@@ -66,21 +66,39 @@ If some details are missing, it uses a simple fallback message like, "Got a new 
 
 ### Additional Tools (if any)
 
-*(No additional tools at this time)*
+### Tool 4: compare_price
+**What it does:**
+Estimates whether the price of the found item is fair by comparing it to the average price of comparable listings in the mock dataset.
+**Input parameters:**
+- `item` (dict): The selected item from `search_listings`.
+**What it returns:**
+A short string explaining how the price compares to the average (e.g., "$5 below average").
+**What happens if it fails or returns nothing:**
+If no comparable items are found, returns "No comparable items found to check price."
+
+### Tool 5: check_trends
+**What it does:**
+Checks recent trends for the category and style tags of the selected item to surface what is currently popular.
+**Input parameters:**
+- `item` (dict): The selected item from `search_listings`.
+**What it returns:**
+A 1-2 sentence generated trend report based on the item's category and style.
+**What happens if it fails or returns nothing:**
+If it fails, returns a generic fallback like "This style is always a classic."
 
 ---
 
 ## Planning Loop
 
 **How does your agent decide which tool to call next?**
-The agent follows a set sequence. First, it runs `search_listings` using the user's search details. If it returns an empty list, the agent tells the user nothing was found and stops. If it finds items, it takes the first result and moves to `suggest_outfit` using the user's wardrobe. Once a styling idea is generated, it passes that idea and the new item to `create_fit_card`. Finally, it returns the fit card and the outfit advice to the user.
+The agent follows a reactive sequence based on results. First, it extracts search criteria and calls `search_listings`. If no results are found, it triggers a retry fallback, running `search_listings` again without the size filter and then without the price filter. If still nothing, it stops and reports an error. Once items are found, the top item is selected. It then calls `compare_price` and `check_trends` to get more context about the item. Next, it calls `suggest_outfit` using the item and the user's wardrobe (which is pre-loaded via style profile memory). The styling advice and new item are passed to `create_fit_card`. Finally, the agent combines all these results into the final output.
 
 ---
 
 ## State Management
 
 **How does information from one tool get passed to the next?**
-Information is kept in a session dictionary. This session tracks the `user_query`, the `search_results`, the `selected_item`, the `outfit_suggestion`, the `fit_card`, and any `error_message`. Each tool saves its output to this session, and the next tool reads what it needs from there.
+Information is kept in a session dictionary. This tracks `user_query`, `search_results`, `selected_item`, `outfit_suggestion`, `fit_card`, `price_comparison`, `trend_report`, `fallback_message`, and any `error_message`. Additionally, the agent uses persistent style profile memory: it saves the user's latest item and preferences to a `data/style_profile.json` file across sessions.
 
 ---
 
@@ -90,9 +108,11 @@ For each tool, describe the specific failure mode you're handling and what the a
 
 | Tool | Failure mode | Agent response |
 |------|-------------|----------------|
-| search_listings | No results match the query | "I couldn't find anything matching your search. Please try adjusting the size, price, or keywords." |
+| search_listings | No results match the query | Triggers retry logic. Relaxes constraints (removes size, then price). If still empty: "I couldn't find anything matching your search." |
 | suggest_outfit | Wardrobe is empty | "Your closet is empty right now, but you could easily style this piece with wide-leg jeans and chunky sneakers." |
 | create_fit_card | Outfit input is missing or incomplete | "Got a new piece! Outfit details coming soon." |
+| compare_price | No comparable items | "No comparable items found to check price." |
+| check_trends | Groq/LLM generation failure | "This style is always a classic." |
 
 ---
 
